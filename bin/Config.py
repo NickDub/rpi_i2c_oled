@@ -8,10 +8,14 @@ from bin.Utils import HassioUtils, Utils
 class Config:
     DEFAULT_DURATION = 10
     SUPPORTED_SCREENS = [
+        'splash',
         'cpu',
         'memory',
         'storage',
         'network'
+    ]
+    HASSIO_DEPENDENT_SCREENS = [
+        'splash'
     ]
     OPTION_KEYS = {
         'show': 'show_{}_screen',
@@ -21,6 +25,7 @@ class Config:
         'default_duration': 'default_duration',
         'i2c_bus': 'i2c_bus',
         'screenshot': 'screenshot',
+        'graceful_exit_text': 'graceful_exit_text',
         'datetime_format': 'datetime_format',
         'supervizor_token': 'supervizor_token'
     }
@@ -111,7 +116,7 @@ class Config:
 
     def enable_screen(self, name):
         if name in Config.SUPPORTED_SCREENS and name not in self.enabled_screens:
-            if self.is_hassio_supported:
+            if name not in Config.HASSIO_DEPENDENT_SCREENS or self.is_hassio_supported:
                 self.enabled_screens.append(name.lower())
 
     def remove_enabled_screen(self, name):
@@ -150,20 +155,20 @@ class Config:
         return self.enabled_screens
 
     def add_option(self, key, value):
-        id = str(key.lower())
-        if id in Config.OPTION_KEYS:
+        key = str(key.lower())
+        if key in Config.OPTION_KEYS:
             self.options[key] = value
             Config.logger.info("'" + str(value) + "' added to the '" + key + "' config")
         return False
 
     def has_option(self, key, screen = None):
-        id = str(key.lower())
+        key = str(key.lower())
 
-        if id in Config.OPTION_KEYS:
+        if key in Config.OPTION_KEYS:
             if screen:
-                key = Config.OPTION_KEYS[id].format(str(screen).lower())
+                key = Config.OPTION_KEYS[key].format(str(screen).lower())
             else:
-                key = Config.OPTION_KEYS[id]
+                key = Config.OPTION_KEYS[key]
                 
             if key in self.options.keys():
                 return key

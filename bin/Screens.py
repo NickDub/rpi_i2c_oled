@@ -155,6 +155,53 @@ class BaseScreen:
         self.render()
         self.logger.info("'" + self.__class__.__name__ + "' completed")
 
+class SplashScreen(BaseScreen):
+    img = Image.open(r"" + Utils.current_dir + "/img/home-assistant-logo.png")
+
+    def __init__(self, duration, display = Display(), utils = Utils(), config = None):
+        super().__init__(duration, display, utils, config)
+
+    def render(self):
+        '''
+            Home Assistant screen. 
+            If you're not using Home Assistant OS, disable this screen in the config
+        '''
+        os_info = self.utils.hassos_get_info('os/info')
+        os_version = os_info['data']['version']
+        os_upgrade = os_info['data']['update_available']  
+
+        if (os_upgrade == True):
+            os_version = os_version + "*"
+
+        core_info = self.utils.hassos_get_info('core/info')
+        core_version = core_info['data']['version']  
+        core_upgrade = os_info['data']['update_available']
+        if (core_upgrade == True):
+            core_version =  core_version + "*"
+
+        img_size = 26
+        padding = 10
+        textbox_x = img_size + padding
+
+        # Get HA Logo and Resize
+        logo = self.img.resize([img_size, img_size])
+        logo = ImageOps.invert(logo)  
+
+        # Merge HA Logo with Canvas.
+        self.display.image.paste(logo,(-2,3))
+        self.display.draw.line([(textbox_x, 16),(123,16)], fill=255, width=1)
+
+        ln1 = self.utils.get_hostname()
+        ln1_font = self.font(size=9, is_bold=True)
+        self.display.draw.text((textbox_x, 2), ln1, font=ln1_font, fill=255)
+
+        # Write Test, Eventually will get from HA API.
+        ln2 = 'OS '+ os_version + ' - ' + core_version
+        ln2_font = self.font()
+        self.display.draw.text((textbox_x, 20), ln2, font=ln2_font, fill=255)
+
+        self.render_with_defaults()
+
 class NetworkScreen(BaseScreen):
     def render(self):
         hostname = self.utils.get_hostname()

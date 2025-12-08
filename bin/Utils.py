@@ -81,7 +81,6 @@ class HassioUtils(Utils):
         info = Utils.shell_cmd(cmd)
         return json.loads(info)
 
-
     @staticmethod
     def get_hostname(opt = ""):
         host_info = HassioUtils.hassos_get_info('host/info')

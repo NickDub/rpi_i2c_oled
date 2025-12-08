@@ -3,7 +3,12 @@
   "Temperature_Unit": "C",
   "DateTime_Format": "%d/%m/%Y %H:%M:%S",
   "Default_Duration": 10,
- 
+  "graceful_exit_text": "Exited at {datetime}",
+
+  "Show_Splash_Screen": false,
+  "Splash_Screen_Limit": null,
+  "Splash_Screen_Duration": null,
+    
   "Show_Network_Screen": true,
   "Network_Screen_Limit": null,
   "Network_Screen_Duration": 10,
