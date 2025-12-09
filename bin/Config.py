@@ -13,7 +13,8 @@ class Config:
         'cpu',
         'memory',
         'storage',
-        'network'
+        'network',
+        'static'
     ]
     HASSIO_DEPENDENT_SCREENS = [
         'Splash'
@@ -27,6 +28,8 @@ class Config:
         'i2c_bus': 'i2c_bus',
         'screenshot': 'screenshot',
         'graceful_exit_text': 'graceful_exit_text',
+        'static_screen_text': 'static_screen_text',
+        'static_screen_text_noscroll': 'static_screen_text_noscroll',
         'datetime_format': 'datetime_format',
         'supervizor_token': 'supervizor_token'
     }
@@ -198,7 +201,16 @@ class Config:
         if not hasattr(self, 'utils'):
             self._init_utils()
 
-        if name in self.enabled_screens:
+        if name == 'static':
+            duration = self.get_screen_duration(name)
+            screen = StaticScreen(duration, self.display, self.utils, self)
+            static_text = self.get_option_value('static_screen_text')
+            if static_text:
+                screen.text = static_text
+                if self.get_option_value('static_screen_text_noscroll'):
+                    screen.noscroll = True
+            return screen
+        elif name in self.enabled_screens:
             class_name = name.capitalize() + 'Screen'
             duration = self.get_screen_duration(name)
             screen = globals()[class_name](duration, self.display, self.utils, self)
