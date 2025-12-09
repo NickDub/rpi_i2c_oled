@@ -9,12 +9,14 @@ from bin.Utils import HassioUtils, Utils
 class Config:
     DEFAULT_DURATION = 10
     SUPPORTED_SCREENS = [
+        'welcome',
         'splash',
-        'cpu',
-        'memory',
-        'storage',
         'network',
-        'static'
+        'storage',
+        'memory',
+        'cpu',
+        'static',
+        'stats'
     ]
     HASSIO_DEPENDENT_SCREENS = [
         'Splash'
@@ -30,8 +32,16 @@ class Config:
         'graceful_exit_text': 'graceful_exit_text',
         'static_screen_text': 'static_screen_text',
         'static_screen_text_noscroll': 'static_screen_text_noscroll',
+        'scroll_amplitude': 'scroll_amplitude',
         'datetime_format': 'datetime_format',
-        'supervizor_token': 'supervizor_token'
+        'welcome_screen_text': 'welcome_screen_text',
+        'rotate': 'rotate',
+        'show_icons': 'show_icons',
+        'show_hint': 'show_hint',
+        'compact': 'compact',
+        'supervizor_token': 'supervizor_token',
+        'screen_size': 'screen_size',
+        'icon_stats': 'icon_stats'
     }
 
     logger = logging.getLogger('Config')
@@ -53,6 +63,10 @@ class Config:
         duration = self.get_option_value('default_duration')
         if duration:
             self.default_duration = int(duration)
+
+        scroller_amplitude = self.get_option_value('scroll_amplitude')
+        if scroller_amplitude:
+            Scroller.default_amplitude = scroller_amplitude
 
     def allow_screen_render(self, screen):
         if self.allow_master_render:
@@ -103,7 +117,16 @@ class Config:
             if not screenshot:
                 screenshot = False
 
-            self.display = Display(busnum=busnum, screenshot=screenshot)
+            rotate = self.get_option_value('rotate')
+            show_icons = self.get_option_value('show_icons')
+            show_hint = self.get_option_value('show_hint')
+            compact = self.get_option_value('compact')
+            size = self.get_option_value('screen_size')
+            icon_stats = self.get_option_value('icon_stats')
+
+            self.display = Display(busnum=busnum, screenshot=screenshot,
+                                   rotate=rotate, size = size, icon_stats=icon_stats, show_icons=show_icons,
+                                   show_hint=show_hint, compact=compact)
 
         except Exception as e:
             raise Exception("Could not create display. Check your i2c bus with 'ls /dev/i2c-*'.")
@@ -217,6 +240,10 @@ class Config:
 
             if name == 'cpu':
                 screen.set_temp_unit(self.get_option_value('temp_unit'))
+
+            if name == 'welcome':
+                screen.text = self.get_option_value('welcome_screen_text')
+                screen.amplitude = self.get_option_value('scroll_amplitude')
             return screen
         else:
             raise Exception(name + " is not an enabled screen")

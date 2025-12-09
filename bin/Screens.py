@@ -1,24 +1,41 @@
 import logging
+import textwrap
 import time
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-from bin.SSD1306 import SSD1306_128_64
+from bin.Scroller import Scroller
+from bin.SSD1306 import SSD1306_128_64, SSD1306_128_32
 from bin.Utils import Utils, HassioUtils
 
 class Display:
     DEFAULT_BUSNUM = 1
     SCREENSHOT_PATH = "./img/examples/"
 
-    def __init__(self, busnum = None, screenshot = False, config = None):
+    def __init__(self, busnum = None, screenshot = False, rotate = False, config = None, show_icons = True,
+                 compact = False, show_hint = False, size = '32', icon_stats = 'text'):
         self.logger = logging.getLogger('Display')
 
         if not isinstance(busnum, int):
             busnum = Display.DEFAULT_BUSNUM
-        self.display = SSD1306_128_64(busnum)
+        if size == '64':
+            self.display = SSD1306_128_64(busnum)
+        else:
+            self.display = SSD1306_128_32(busnum)
         self.clear()
         self.width = self.display.width
         self.height = self.display.height
+        self.rotate = rotate
+
+        self.compact = compact
+        self.show_icons = show_icons
+        self.show_hint = show_hint
+        self.icon_stats = icon_stats
+        self.hint_right = True
+
+        if self.show_icons and self.show_hint:
+           self.logger.error("show_icons and show_hint both True; turning off hint")
+           self.show_hint = False
 
         self.image = Image.new("1", (self.width, self.height))
         self.draw = ImageDraw.Draw(self.image)
@@ -33,6 +50,10 @@ class Display:
         self.draw.rectangle((0, 0, self.width, self.height), outline = 0, fill = 0)
 
     def show(self):
+        if isinstance(self.rotate, int):
+            self.image = self.image.rotate(self.rotate)
+            self.draw = ImageDraw.Draw(self.image)
+
         self.display.image(self.image)
         self.display.display()
 
@@ -58,6 +79,8 @@ class BaseScreen:
         self.duration = duration
         self.utils = utils
         self.config = config
+        self.hint = None
+        self.icon = None
         self.font_size = 8
         self.logger = logging.getLogger('Screen')
         self.logger.info("'" + self.__class__.__name__ + "' created")
@@ -66,9 +89,23 @@ class BaseScreen:
     def name(self):
         return str(self.__class__.__name__).lower().replace("screen", "")
 
+    def set_icon(self, path):
+        """ set the image for this screen """
+        if not self.icon or self.icon_path != path:
+           self.icon_path = path
+           img = Image.open(r"" + Utils.current_dir + self.icon_path)
+           # img = img.convert('RGBA') # MUST be in RGB mode for the OLED
+           # invert black icon to white (255) for OLED display
+           #self.icon = ImageOps.invert( self.icon )
+           self.icon = img.resize([30, 30])
+
     @property
     def text_indent(self):
         """ :return: how far to indent a line of text for this screen """
+        if self.display.show_icons and self.icon:
+            return 29
+        elif self.hint and not self.display.hint_right:
+            return 16
         return 0
 
     def capture_screenshot(self, name = None):
@@ -103,9 +140,15 @@ class BaseScreen:
 
        # set defaults based on number of lines
        if self.text_lines > 2:
-          self.font_size = 10
+          if self.text_indent < 10:
+             self.font_size = 10
+          else:
+             self.font_size = 9
        else:
-          self.font_size = 14
+          if self.text_indent < 10:
+             self.font_size = 14
+          else:
+             self.font_size = 13
 
     @property
     def text_y(self):
@@ -117,6 +160,27 @@ class BaseScreen:
            return [0, 11, 21]
         else:
            return None
+
+    def display_hint(self):
+       if not self.hint or not self.display.show_hint:
+           return
+
+       # determine whether to put hints on right or left
+       x_pos = 0
+       if self.display.hint_right:
+          x_pos = 119
+       font = self.font(size=11, is_bold=True)
+
+       draw = self.display.draw
+       draw.rectangle((x_pos, 0, x_pos + 10, 32), outline = 255, fill = 255)
+
+       # display the text based on how many characters the hint is
+       text_fill = 0
+       draw.text((x_pos, -2), self.hint[0], font=font, fill=text_fill)
+       if (len(self.hint) > 1):
+           draw.text((x_pos, 8), self.hint[1], font=font, fill=text_fill)
+       if (len(self.hint) > 2):
+           draw.text((x_pos, 18), self.hint[2], font=font, fill=text_fill)
 
     def font(self, size = None, is_bold = False, is_icon = False):
         # default to the current screen's font size if none provided
@@ -146,8 +210,36 @@ class BaseScreen:
     def default_message(self):
         return 'Welcome to ' + self.utils.get_hostname()
 
+    # helper function to display the current page (used by standard screens)
+    def render_with_defaults(self):
+        self.display_hint()
+
+        # add icon to canvas (if enabled)
+        if self.display.show_icons and self.icon:
+           self.display.image.paste(self.icon, (-3, 3))
+
+        self.capture_screenshot()
+        self.display.show()
+        time.sleep(self.duration)
+
     def render(self):
         self.display.show()
+
+    def render_scroller(self, text, font, amplitude = 0, startpos = None):
+        if not startpos:
+            startpos = self.display.width
+        scroller = Scroller(text, startpos, font, self.display, amplitude)
+        timer = time.time() + self.duration
+        while self.config.allow_screen_render(self.name):
+            self.display.prepare()
+            scroller.render()
+            self.display.show()
+
+            if scroller.pos == 2:
+                self.capture_screenshot()
+
+            if not self.config.allow_screen_render(self.name) or not scroller.move_for_next_frame(time.time() < timer):
+                break
 
     def run(self):
         self.logger.info("'" + self.__class__.__name__ + "' rendering")
@@ -237,6 +329,35 @@ class StaticScreen(BaseScreen):
                 self.display.draw.text((x, y), self.text, font=font, fill=255)
 
             self.render_with_defaults()
+
+class WelcomeScreen(BaseScreen):
+    @property
+    def text(self):
+        if not self._text:
+            self.text = self.default_message
+            self.logger.info("No configured welcome text found")
+
+        if not self._text_compiled:
+            self._text_compiled = True
+            self._text = self.utils.compile_text(self._text)
+            self.logger.info("Welcome screen text compiled: '" + self._text + "'")
+
+        return self._text
+
+    @text.setter
+    def text(self, text):
+        self._text = str(text)
+        self._text_compiled = False
+        self.logger.info("Welcome screen text: '" + self._text + "' added")
+
+    def render(self):
+        '''
+        Animated welcome screen
+        Scrolls 'Welcome [hostname]' across the screen
+        '''
+        height = self.display.height
+        font = self.font(size=16)
+        self.render_scroller(self.text, font)
 
 class SplashScreen(BaseScreen):
     img = Image.open(r"" + Utils.current_dir + "/img/home-assistant-logo.png")
@@ -369,6 +490,55 @@ class CpuScreen(BaseScreen):
         self.display.draw.text((19, 23), str(temp), font=self.font(16), fill=255)
         self.display.draw.text((87, 23), str(cpu), font=self.font(16), fill=255)
         self.display.draw.text((19, 43), uptime, font=self.font(16), fill=255)
+
+        self.display.show()
+        time.sleep(self.duration)
+
+class StatsScreen(BaseScreen):
+    def set_temp_unit(self, unit):
+        unit = str(unit).upper()
+        if unit in ['C', 'F']:
+            self.temp_unit = unit
+
+    def get_temp(self):
+        temp =  float(Utils.shell_cmd("cat /sys/class/thermal/thermal_zone0/temp")) / 1000.00
+
+        if (hasattr(self, 'temp_unit') and self.temp_unit == 'F'):
+            temp = "%0.2f °F " % (temp * 9.0 / 5.0 + 32)
+        else:
+            temp = "%0.2f °C " % (temp)
+
+        return temp
+
+    def render(self):
+        self.display.prepare()
+                
+        ipv4 = self.utils.get_ip()
+        core_stats = HassioUtils().hassos_get_info('core/stats', self.config)	
+        cpu = core_stats["data"]['cpu_percent']
+        temp = self.get_temp()
+        mem = Utils.shell_cmd("free -m | awk 'NR==2{printf \"Mem: %s/%sMB %.2f%%\", $3,$2,$3*100/$2 }'")
+        storage =  Utils.shell_cmd("df -h | awk '$NF==\"/\"{printf \"Disk: %d/%dGB %s\", $3,$2,$5}'")
+
+        if(self.display.icon_stats == 'text'):
+            self.display.draw.text((0, 0), "IP: " + ipv4, font=self.font(16), fill=255)
+            self.display.draw.text((0, 16), "CPU: " + str(cpu) + "LA", font=self.font(16), fill=255)
+            self.display.draw.text((80, 16), temp, font=self.font(16), fill=255)
+            self.display.draw.text((0, 32), mem, font=self.font(16), fill=255)
+            self.display.draw.text((0, 48), storage, font=self.font(16), fill=255)
+        else:
+            storage =  Utils.shell_cmd("df -h | awk '$NF==\"/\"{printf \"%d/%dGB\", $3,$2}'")
+            mem = Utils.shell_cmd("free -m | awk 'NR==2{printf \"%.2f%%\", $3*100/$2 }'")
+            self.display.draw.text((0, 3), chr(62609), font=self.font(18, is_bold=False, is_icon=True), fill=255)
+            self.display.draw.text((65, 3), chr(62776), font=self.font(18, is_bold=False, is_icon=True), fill=255)
+            self.display.draw.text((0, 23), chr(63426), font=self.font(18, is_bold=False, is_icon=True), fill=255)
+            self.display.draw.text((65, 23), chr(62171), font=self.font(18, is_bold=False, is_icon=True), fill=255)
+            self.display.draw.text((0, 43), chr(61931), font=self.font(18, is_bold=False, is_icon=True), fill=255)
+            self.display.draw.text((19, 3), str(temp), font=self.font(16), fill=255)  
+            self.display.draw.text((87, 3), str(mem), font=self.font(16), fill=255)
+            self.display.draw.text((19, 23), str(storage), font=self.font(16), fill=255)
+            self.display.draw.text((87, 23), str(cpu) + "LA", font=self.font(16), fill=255)
+            self.display.draw.text((19, 43), ipv4, font=self.font(16), fill=255)
 
         self.display.show()
         time.sleep(self.duration)
