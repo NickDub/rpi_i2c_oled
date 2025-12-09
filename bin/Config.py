@@ -1,5 +1,6 @@
 import logging
 import json
+import signal
 
 from bin.Screens import *
 from bin.Utils import HassioUtils, Utils
@@ -15,7 +16,7 @@ class Config:
         'network'
     ]
     HASSIO_DEPENDENT_SCREENS = [
-        'splash'
+        'Splash'
     ]
     OPTION_KEYS = {
         'show': 'show_{}_screen',
@@ -155,20 +156,20 @@ class Config:
         return self.enabled_screens
 
     def add_option(self, key, value):
-        key = str(key.lower())
-        if key in Config.OPTION_KEYS:
+        id = str(key.lower())
+        if id in Config.OPTION_KEYS:
             self.options[key] = value
             Config.logger.info("'" + str(value) + "' added to the '" + key + "' config")
         return False
 
     def has_option(self, key, screen = None):
-        key = str(key.lower())
+        id = str(key.lower())
 
-        if key in Config.OPTION_KEYS:
+        if id in Config.OPTION_KEYS:
             if screen:
-                key = Config.OPTION_KEYS[key].format(str(screen).lower())
+                key = Config.OPTION_KEYS[id].format(str(screen).lower())
             else:
-                key = Config.OPTION_KEYS[key]
+                key = Config.OPTION_KEYS[id]
                 
             if key in self.options.keys():
                 return key

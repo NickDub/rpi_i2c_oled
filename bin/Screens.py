@@ -166,14 +166,14 @@ class SplashScreen(BaseScreen):
             Home Assistant screen. 
             If you're not using Home Assistant OS, disable this screen in the config
         '''
-        os_info = self.utils.hassos_get_info('os/info')
+        os_info = self.utils.hassos_get_info(self, 'os/info')
         os_version = os_info['data']['version']
         os_upgrade = os_info['data']['update_available']  
 
         if (os_upgrade == True):
             os_version = os_version + "*"
 
-        core_info = self.utils.hassos_get_info('core/info')
+        core_info = self.utils.hassos_get_info(self, 'core/info')
         core_version = core_info['data']['version']  
         core_upgrade = os_info['data']['update_available']
         if (core_upgrade == True):
