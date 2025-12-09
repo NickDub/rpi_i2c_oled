@@ -155,6 +155,89 @@ class BaseScreen:
         self.render()
         self.logger.info("'" + self.__class__.__name__ + "' completed")
 
+class StaticScreen(BaseScreen):
+    @property
+    def text(self):
+        if not self._text:
+            self.text = self.default_message
+            self.logger.info("No static text found")
+
+        if not self._text_compiled:
+            self._text_compiled = True
+            self._text = self.utils.compile_text(self._text)
+            self.logger.info(f"Static screen text compiled: '{self._text}'")
+
+        return self._text
+
+    @text.setter
+    def text(self, text):
+        self._text = str(text)
+        self._text_compiled = False
+        self.logger.info(f"Static screen text: '{self._text}' added")
+
+    @property
+    def noscroll(self):
+        if not hasattr(self, '_noscroll'):
+            return False
+        return self._noscroll
+
+    @noscroll.setter
+    def noscroll(self, state):
+        self._noscroll = bool(state)
+        self.logger.info(f"Static screens text animated set to '{str(self._noscroll)}'")
+
+    # @property
+    # def amplitude(self):
+    #     if not self._amplitude:
+    #         return 0
+    #     return self._amplitude
+
+    # @amplitude.setter
+    # def amplitude(self, amplitude):
+    #     self._amplitude = int(amplitude) * -1
+    #     self.logger.info("Static screen amplitude: '" + str(self._amplitude) + "' set")
+
+    def capture_screenshot(self):
+        slug = Utils.slugify(self.text)
+        super().capture_screenshot("static_" + slug)
+
+    def render(self):
+        self.display.prepare()
+        font = self.font(size=16)
+        text = self.text
+        # amplitude = self.amplitude
+
+        self.logger.info("Rendering static text: " + text)
+        if not self.noscroll and Utils.requires_scroller(self.display, text, font):
+            self.render_scroller(text, font)
+        else:
+            if not Utils.does_text_width_fit(self.display, text, font):
+                self.logger.info("Static text too wide for screen")
+                lines = textwrap.wrap(text, width=15)
+                font = self.font(12)
+                text_leading = 3
+                y_text = self.display.height
+                for i, line in enumerate(lines):
+                    width, height = Utils.get_text_size(self.display, line, font)
+                    new_y = y_text - height - (text_leading / 2)
+                    if new_y > 0:
+                        y_text = new_y
+                    else:
+                        y_text = 0
+                        break
+
+                y_text /= 2
+                for line in lines:
+                    width, height = Utils.get_text_size(self.display, line, font)
+                    left = (self.display.width - width) / 2
+                    self.display.draw.text((left, y_text), line, font=font, fill=255)
+                    y_text += (height + text_leading)
+            else:
+                x, y = Utils.get_text_center(self.display, text, font)
+                self.display.draw.text((x, y), self.text, font=font, fill=255)
+
+            self.render_with_defaults()
+
 class SplashScreen(BaseScreen):
     img = Image.open(r"" + Utils.current_dir + "/img/home-assistant-logo.png")
 
