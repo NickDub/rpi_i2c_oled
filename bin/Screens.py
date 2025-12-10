@@ -74,7 +74,11 @@ class BaseScreen:
     font_icon = Utils.current_dir + "/fonts/lineawesome-webfont.ttf"
     fonts = {}
 
-    def __init__(self, duration, display = Display(), utils = Utils(), config = None):
+    def __init__(self, duration, display = None, utils = None, config = None):
+        if display is None:
+            display = Display()
+        if utils is None:
+            utils = Utils()
         self.display = display
         self.duration = duration
         self.utils = utils
@@ -360,26 +364,25 @@ class WelcomeScreen(BaseScreen):
         self.render_scroller(self.text, font)
 
 class SplashScreen(BaseScreen):
-    img = Image.open(r"" + Utils.current_dir + "/img/home-assistant-logo.png")
-
-    def __init__(self, duration, display = Display(), utils = Utils(), config = None):
+    def __init__(self, duration, display = None, utils = None, config = None):
         super().__init__(duration, display, utils, config)
+        self.img = Image.open(r"" + Utils.current_dir + "/img/home-assistant-logo.png")
 
     def render(self):
         '''
             Home Assistant screen. 
             If you're not using Home Assistant OS, disable this screen in the config
         '''
-        os_info = self.utils.hassos_get_info(self, 'os/info')
+        os_info = self.utils.hassos_get_info('os/info', self.config)
         os_version = os_info['data']['version']
-        os_upgrade = os_info['data']['update_available']  
+        os_upgrade = os_info['data']['update_available']
 
         if (os_upgrade == True):
             os_version = os_version + "*"
 
-        core_info = self.utils.hassos_get_info(self, 'core/info')
-        core_version = core_info['data']['version']  
-        core_upgrade = os_info['data']['update_available']
+        core_info = self.utils.hassos_get_info('core/info', self.config)
+        core_version = core_info['data']['version']
+        core_upgrade = core_info['data']['update_available']
         if (core_upgrade == True):
             core_version =  core_version + "*"
 
@@ -476,9 +479,16 @@ class CpuScreen(BaseScreen):
 
     def render(self):
         temp = self.get_temp()
-        core_stats = HassioUtils().hassos_get_info('core/stats', self.config)	
-        cpu = core_stats["data"]['cpu_percent']
-        uptime = Utils.shell_cmd("uptime | grep -ohe 'up .*' | sed 's/,//g' | awk '{ print $2" "$3 }'")
+        uptime = Utils.shell_cmd("uptime | grep -ohe 'up .*' | sed 's/,//g' | awk '{ print $2\" \"$3 }'")
+        cpu = None
+        if isinstance(self.utils, HassioUtils):
+            try:
+                core_stats = self.utils.hassos_get_info('core/stats', self.config)
+                cpu = core_stats["data"]['cpu_percent']
+            except Exception as e:
+                self.logger.warning("Could not fetch CPU stats from Hassio: " + str(e))
+        if cpu is None:
+            cpu = Utils.shell_cmd("top -bn1 | grep 'Cpu(s)' | awk '{print $2}'").strip()
 
         # Draw Icons
         self.display.draw.text((0, 3), chr(int("0xf2db", 0)), font=self.font(18, is_bold=False, is_icon=True), fill=255) # microchip
@@ -512,10 +522,17 @@ class StatsScreen(BaseScreen):
 
     def render(self):
         self.display.prepare()
-                
+
         ipv4 = self.utils.get_ip()
-        core_stats = HassioUtils().hassos_get_info('core/stats', self.config)	
-        cpu = core_stats["data"]['cpu_percent']
+        cpu = None
+        if isinstance(self.utils, HassioUtils):
+            try:
+                core_stats = self.utils.hassos_get_info('core/stats', self.config)
+                cpu = core_stats["data"]['cpu_percent']
+            except Exception as e:
+                self.logger.warning("Could not fetch CPU stats from Hassio: " + str(e))
+        if cpu is None:
+            cpu = Utils.shell_cmd("top -bn1 | grep 'Cpu(s)' | awk '{print $2}'").strip()
         temp = self.get_temp()
         mem = Utils.shell_cmd("free -m | awk 'NR==2{printf \"Mem: %s/%sMB %.2f%%\", $3,$2,$3*100/$2 }'")
         storage =  Utils.shell_cmd("df -h | awk '$NF==\"/\"{printf \"Disk: %d/%dGB %s\", $3,$2,$5}'")

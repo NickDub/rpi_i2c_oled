@@ -3,6 +3,7 @@ import json
 import signal
 
 from bin.Screens import *
+from bin.Scroller import Scroller
 from bin.Utils import HassioUtils, Utils
 
 
@@ -19,7 +20,7 @@ class Config:
         'stats'
     ]
     HASSIO_DEPENDENT_SCREENS = [
-        'Splash'
+        'splash'
     ]
     OPTION_KEYS = {
         'show': 'show_{}_screen',
@@ -39,7 +40,8 @@ class Config:
         'show_icons': 'show_icons',
         'show_hint': 'show_hint',
         'compact': 'compact',
-        'supervizor_token': 'supervizor_token',
+        'supervizor_token': 'supervizor_token',  # kept for backward compat
+        'supervisor_token': 'supervisor_token',
         'screen_size': 'screen_size',
         'icon_stats': 'icon_stats'
     }
@@ -184,8 +186,9 @@ class Config:
     def add_option(self, key, value):
         id = str(key.lower())
         if id in Config.OPTION_KEYS:
-            self.options[key] = value
+            self.options[id] = value
             Config.logger.info("'" + str(value) + "' added to the '" + key + "' config")
+            return True
         return False
 
     def has_option(self, key, screen = None):

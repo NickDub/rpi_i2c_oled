@@ -41,6 +41,7 @@ class Utils:
     def get_ip():
         return Utils.get_hostname('-I')
 
+    @staticmethod
     def get_datetime(format = None):
         if not format:
             format = Utils.datetime_format if hasattr(Utils, 'datetime_format') else "%d/%m/%Y %H:%M:%S"
@@ -75,7 +76,9 @@ class HassioUtils(Utils):
         Utils.logger.info("Requesting data from '" + url + "'")
         token = '$SUPERVISOR_TOKEN'
         if config is not None:
-            if config.has_option('supervizor_token'):
+            if config.has_option('supervisor_token'):
+                token = config.get_option_value('supervisor_token')
+            elif config.has_option('supervizor_token'):  # backward compat
                 token = config.get_option_value('supervizor_token')
         cmd = 'curl -sSL -H "Authorization: Bearer ' + token +'" -H "content-type: application/json" ' + url
         info = Utils.shell_cmd(cmd)
@@ -103,7 +106,7 @@ class HassioUtils(Utils):
         }
         text = Utils.compile_text(text, {**replacements, **additional_replacements})
         regex = re.compile("{hassio\\.[a-z]+\\.[a-z\\.]+}")
-        return regex.sub(lambda match: HassioUtils.get_hassio_info_property(match.string[match.start():match.end()][len("hassio\\."):-1]), text)
+        return regex.sub(lambda match: HassioUtils.get_hassio_info_property(match.string[match.start():match.end()][len("{hassio."):-1]), text)
 
     @staticmethod
     def get_hassio_info_property(properties_string):
@@ -136,3 +139,4 @@ class HassioUtils(Utils):
                 raise Exception("No data available")
         except Exception as e:
             Utils.logger.warning("Could not load hassio info url '"+ url +"': " + str(e))
+            return None
